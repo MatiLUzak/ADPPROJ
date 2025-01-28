@@ -18,12 +18,12 @@ try:
     m = folium.Map(location=[36.2048, 138.2529], zoom_start=5, tiles="CartoDB Positron")
 
     # Warstwy dla filtrowania
-    layer_low = folium.FeatureGroup(name="Magnituda 4.5 - 4.9").add_to(m)
-    layer_medium = folium.FeatureGroup(name="Magnituda 5.0 - 5.4").add_to(m)
-    layer_high = folium.FeatureGroup(name="Magnituda 5.5+").add_to(m)
+    layer_low = folium.FeatureGroup(name="Magnituda 4.5 - 4.9", show=False).add_to(m)
+    layer_medium = folium.FeatureGroup(name="Magnituda 5.0 - 5.4", show=False).add_to(m)
+    layer_high = folium.FeatureGroup(name="Magnituda 5.5+", show=False).add_to(m)
 
     # Funkcja klastrów
-    marker_cluster = MarkerCluster(name="Wszystkie punkty").add_to(m)
+    marker_cluster = MarkerCluster(name="Wszystkie punkty", show=False).add_to(m)
 
     # Lista danych do heatmapy i timelapsa
     heatmap_data = []
@@ -105,7 +105,7 @@ try:
         add_last_point=True,
         auto_play=False,
         loop=False,
-        max_speed=10,  # Przyspieszone odtwarzanie timelapsa
+        max_speed=100,  # Zwiększona szybkość timelapsa
         loop_button=True,
         date_options="YYYY-MM-DD",
         time_slider_drag_update=True,  # Przeciąganie suwaka
@@ -113,44 +113,71 @@ try:
 
     # Dodanie Heatmapy jako dodatkowej warstwy
     HeatMap(heatmap_data, radius=15, blur=10, max_zoom=10).add_to(
-        folium.FeatureGroup(name="Heatmapa").add_to(m)
+        folium.FeatureGroup(name="Heatmapa", show=False).add_to(m)
     )
 
     # Dodanie MiniMapy
     MiniMap(toggle_display=True).add_to(m)
 
-    # Dodanie legendy
+    # **Dodanie przycisku "Legenda" jako viewport**
     legend_html = """
-    <div style="
-        position: fixed;
-        bottom: 50px;
-        left: 50px;
-        width: 250px;
-        height: 120px;
-        background-color: white;
-        border:2px solid grey;
-        z-index:9999;
-        font-size:14px;
-        padding: 10px;
-        ">
+    <style>
+        #legend_button {
+            position: fixed;
+            bottom: calc(94vh + 20px); /* 10% od dolnej krawędzi + dodatkowy margines */
+            left: 91vw; /* 2% szerokości ekranu od lewej */
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid black;
+            cursor: pointer;
+            font-weight: bold;
+            z-index: 1000;
+        }
+
+        #legend_panel {
+            position: fixed;
+            bottom: calc(10vh + 50px);
+            left: 2vw;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid black;
+            display: none;
+            font-size: 14px;
+            z-index: 1000;
+        }
+    </style>
+
+    <div id="legend_button" onclick="toggleLegend()">Legenda</div>
+
+    <div id="legend_panel">
         <strong>Legenda:</strong><br>
-        <i style="background: blue; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
-        Magnituda 4.5 - 4.9<br>
-        <i style="background: green; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
-        Magnituda 5.0 - 5.4<br>
-        <i style="background: red; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
-        Magnituda 5.5+<br>
+        <i style="background: blue; width: 15px; height: 15px; display: inline-block; border-radius: 50%;"></i> Magnituda 4.5 - 4.9<br>
+        <i style="background: green; width: 15px; height: 15px; display: inline-block; border-radius: 50%;"></i> Magnituda 5.0 - 5.4<br>
+        <i style="background: red; width: 15px; height: 15px; display: inline-block; border-radius: 50%;"></i> Magnituda 5.5+<br>
+        <div style="background: linear-gradient(to right, blue, red); width: 100px; height: 15px;"></div> Heatmapa - gęstość trzęsień ziemi
     </div>
+
+    <script>
+    function toggleLegend() {
+        var panel = document.getElementById('legend_panel');
+        if (panel.style.display === "none") {
+            panel.style.display = "block";
+        } else {
+            panel.style.display = "none";
+        }
+    }
+    </script>
     """
-    legend = MacroElement()
-    legend._template = Template(legend_html)
-    m.get_root().add_child(legend)
+
+    m.get_root().html.add_child(folium.Element(legend_html))
 
     # Dodanie przycisku LayerControl do mapy
     folium.LayerControl().add_to(m)
 
     # Zapis mapy do pliku HTML
-    output_file = "japan_earthquakes_with_fast_timeline.html"
+    output_file = "japan_earthquakes_with_responsive_legend.html"
     m.save(output_file)
 
     print(f"Mapa została zapisana w pliku {output_file}.")
