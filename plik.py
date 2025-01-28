@@ -2,6 +2,7 @@ import folium
 from folium.plugins import TimestampedGeoJson, MarkerCluster, HeatMap, MiniMap
 import geopandas as gpd
 import pandas as pd
+from branca.element import Template, MacroElement
 
 # Ścieżka do pliku GeoJSON
 geojson_file = "query.geojson"
@@ -16,12 +17,19 @@ try:
     # Utworzenie mapy
     m = folium.Map(location=[36.2048, 138.2529], zoom_start=5, tiles="CartoDB Positron")
 
-    # Dodanie funkcji klastrów
-    marker_cluster = MarkerCluster().add_to(m)
+    # Warstwy dla filtrowania
+    layer_low = folium.FeatureGroup(name="Magnituda 4.5 - 4.9").add_to(m)
+    layer_medium = folium.FeatureGroup(name="Magnituda 5.0 - 5.4").add_to(m)
+    layer_high = folium.FeatureGroup(name="Magnituda 5.5+").add_to(m)
 
-    # Utworzenie listy funkcji GeoJSON dla TimestampedGeoJson
+    # Funkcja klastrów
+    marker_cluster = MarkerCluster(name="Wszystkie punkty").add_to(m)
+
+    # Lista danych do heatmapy i timelapsa
+    heatmap_data = []
     features = []
-    heatmap_data = []  # Dane do heatmapy
+
+    # Tworzenie punktów i filtrowanie danych
     for _, row in data.iterrows():
         mag = row["mag"]  # Magnituda
         time = row["time"].isoformat()  # Data w formacie ISO8601
@@ -32,13 +40,27 @@ try:
         <a href="{row.get('url', '#')}" target="_blank">Szczegóły</a>
         """
 
-        # Wybór koloru na podstawie magnitudy
+        # Wybór koloru i warstwy na podstawie magnitudy
         if 4.5 <= mag < 5.0:
             color = "blue"
+            layer = layer_low
         elif 5.0 <= mag < 5.5:
             color = "green"
-        else:  # mag >= 6.0
+            layer = layer_medium
+        else:  # mag >= 5.5
             color = "red"
+            layer = layer_high
+
+        # Dodanie punktu do odpowiedniej warstwy
+        folium.CircleMarker(
+            location=[coords[1], coords[0]],
+            radius=8,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.6,
+            popup=popup_text,
+        ).add_to(layer)
 
         # Dodanie punktu do klastrów
         folium.CircleMarker(
@@ -83,24 +105,52 @@ try:
         add_last_point=True,
         auto_play=False,
         loop=False,
-        max_speed=1,
+        max_speed=10,  # Przyspieszone odtwarzanie timelapsa
         loop_button=True,
         date_options="YYYY-MM-DD",
-        time_slider_drag_update=True,
+        time_slider_drag_update=True,  # Przeciąganie suwaka
     ).add_to(m)
 
     # Dodanie Heatmapy jako dodatkowej warstwy
-    HeatMap(heatmap_data, radius=15, blur=10, max_zoom=10).add_to(m)
+    HeatMap(heatmap_data, radius=15, blur=10, max_zoom=10).add_to(
+        folium.FeatureGroup(name="Heatmapa").add_to(m)
+    )
 
     # Dodanie MiniMapy
-    minimap = MiniMap(toggle_display=True)
-    minimap.add_to(m)
+    MiniMap(toggle_display=True).add_to(m)
 
-    # Dodanie skali (alternatywna metoda)
-    folium.map.LayerControl().add_to(m)
+    # Dodanie legendy
+    legend_html = """
+    <div style="
+        position: fixed;
+        bottom: 50px;
+        left: 50px;
+        width: 250px;
+        height: 120px;
+        background-color: white;
+        border:2px solid grey;
+        z-index:9999;
+        font-size:14px;
+        padding: 10px;
+        ">
+        <strong>Legenda:</strong><br>
+        <i style="background: blue; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
+        Magnituda 4.5 - 4.9<br>
+        <i style="background: green; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
+        Magnituda 5.0 - 5.4<br>
+        <i style="background: red; width: 10px; height: 10px; float: left; margin-right: 5px; opacity: 0.7;"></i>
+        Magnituda 5.5+<br>
+    </div>
+    """
+    legend = MacroElement()
+    legend._template = Template(legend_html)
+    m.get_root().add_child(legend)
+
+    # Dodanie przycisku LayerControl do mapy
+    folium.LayerControl().add_to(m)
 
     # Zapis mapy do pliku HTML
-    output_file = "japan_earthquakes_timeline_with_clusters_and_features.html"
+    output_file = "japan_earthquakes_with_fast_timeline.html"
     m.save(output_file)
 
     print(f"Mapa została zapisana w pliku {output_file}.")
